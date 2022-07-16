@@ -3,5 +3,4 @@ from pydantic import BaseModel
 
 
 class SetSemaphoreSchema(BaseModel):
-    id: int
-    state: Literal["red", "yellow", "green", "redyellow", "off"]
+    state: Literal["red", "green", "off"]
