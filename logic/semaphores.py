@@ -3,6 +3,7 @@ import time
 import asyncio
 
 timestamp = time.time()
+zebra = False
 
 SEMAPHORE_PINS = [
     {
@@ -23,6 +24,8 @@ TL2RED = 12
 TL2YELLOW = 3
 TL2GREEN = 5
 
+BUTTON = 10
+
 # Initial setup
 GPIO.setmode(GPIO.BOARD)
 GPIO.setwarnings(False)
@@ -33,6 +36,17 @@ for semaphore in SEMAPHORE_PINS:
         GPIO.output(pin, GPIO.LOW)
 GPIO.output(SEMAPHORE_PINS[0]["pins"]["green"], GPIO.HIGH)
 GPIO.output(SEMAPHORE_PINS[1]["pins"]["red"], GPIO.HIGH)
+
+
+def button_callback(channel):
+    global timestamp, zebra
+    timestamp = time.time()
+    zebra = True
+    print("...")
+
+
+GPIO.setup(BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+GPIO.add_event_detect(BUTTON, GPIO.RISING, callback=button_callback)
 
 
 def get_semaphore_state(id):
@@ -49,9 +63,11 @@ def get_semaphore_state(id):
 
 
 def get_state():
+    global timestamp, zebra
+
     return {
         "timestamp": timestamp,
-        "zebra": False,
+        "zebra": zebra,
         "lights": [
             {
                 "id": 0,
@@ -169,7 +185,7 @@ async def set_semaphore(main_state):
 
 class BackgroundRunner:
     async def run_main(self):
-        global timestamp
+        global timestamp, zebra
         while True:
             time_dif = time.time() - timestamp
             if (
@@ -178,4 +194,7 @@ class BackgroundRunner:
                 and get_semaphore_state(1) == "green"
             ):
                 await set_semaphore("green")
+            elif time_dif >= 2 and zebra == True:
+                zebra = False
+                await set_semaphore("red")
             await asyncio.sleep(1)

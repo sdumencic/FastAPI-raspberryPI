@@ -27,7 +27,7 @@ async def app_startup():
     asyncio.create_task(runner.run_main())
 
 
-@app.patch("/set")
+@app.post("/set")
 async def set_main_light(bg: BackgroundTasks, value: SetSemaphoreSchema):
     bg.add_task(semaphores.set_semaphore, value.state)
     return {"msg": "Light changes will be applied"}
@@ -45,3 +45,4 @@ async def websocket_endpoint(websocket: WebSocket):
                 await asyncio.sleep(0.5)
     except WebSocketDisconnect:
         print("Websocket terminated abruptly", flush=True)
+        
