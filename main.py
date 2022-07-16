@@ -9,6 +9,8 @@ print(semaphores.SEMAPHORE_PINS)
 
 app = FastAPI()
 
+runner = semaphores.BackgroundRunner()
+
 origins = ["*"]
 
 app.add_middleware(
@@ -18,6 +20,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def app_startup():
+    asyncio.create_task(runner.run_main())
 
 
 @app.patch("/set")
@@ -32,9 +39,9 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             await websocket.send_json(semaphores.get_state())
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
             oldTimeStamp = semaphores.timestamp
             while oldTimeStamp == semaphores.timestamp:
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.5)
     except WebSocketDisconnect:
         print("Websocket terminated abruptly", flush=True)

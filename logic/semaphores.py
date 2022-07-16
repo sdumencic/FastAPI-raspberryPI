@@ -1,5 +1,6 @@
 import RPi.GPIO as GPIO
 import time
+import asyncio
 
 timestamp = time.time()
 
@@ -65,33 +66,116 @@ def get_state():
     }
 
 
-""" async def set_all_to_red(state):
-    for light in state["lights"]:
-        if light["state"] != "red":
-            pass
-    # return {"msg": f"{id}, {state}"} """
-
-
 # Turning both semaphores off
 def turn_all_off():
+    global timestamp
     for semaphore in SEMAPHORE_PINS:
         for color in ["red", "green", "yellow"]:
             pin = semaphore["pins"][color]
             GPIO.output(pin, GPIO.LOW)
+
+    timestamp = time.time()
+
+
+def turn_one_off(id):
+    if id == 0:
+        GPIO.output(TL1RED, GPIO.LOW)
+        GPIO.output(TL1YELLOW, GPIO.LOW)
+        GPIO.output(TL1GREEN, GPIO.LOW)
+    elif id == 1:
+        GPIO.output(TL2RED, GPIO.LOW)
+        GPIO.output(TL2YELLOW, GPIO.LOW)
+        GPIO.output(TL2GREEN, GPIO.LOW)
+
+
+def turn_one_green(id):
+    if id == 0:
+        GPIO.output(TL1RED, GPIO.LOW)
+        GPIO.output(TL1YELLOW, GPIO.LOW)
+        GPIO.output(TL1GREEN, GPIO.HIGH)
+    elif id == 1:
+        GPIO.output(TL2RED, GPIO.LOW)
+        GPIO.output(TL2YELLOW, GPIO.LOW)
+        GPIO.output(TL2GREEN, GPIO.HIGH)
+
+
+def turn_one_redyellow(id):
+    if id == 0:
+        GPIO.output(TL1RED, GPIO.HIGH)
+        GPIO.output(TL1YELLOW, GPIO.HIGH)
+        GPIO.output(TL1GREEN, GPIO.LOW)
+    elif id == 1:
+        GPIO.output(TL2RED, GPIO.HIGH)
+        GPIO.output(TL2YELLOW, GPIO.HIGH)
+        GPIO.output(TL2GREEN, GPIO.LOW)
+
+
+def turn_one_red(id):
+    if id == 0:
+        GPIO.output(TL1RED, GPIO.HIGH)
+        GPIO.output(TL1YELLOW, GPIO.LOW)
+        GPIO.output(TL1GREEN, GPIO.LOW)
+    elif id == 1:
+        GPIO.output(TL2RED, GPIO.HIGH)
+        GPIO.output(TL2YELLOW, GPIO.LOW)
+        GPIO.output(TL2GREEN, GPIO.LOW)
+
+
+def turn_one_yellow(id):
+    if id == 0:
+        GPIO.output(TL1RED, GPIO.LOW)
+        GPIO.output(TL1YELLOW, GPIO.HIGH)
+        GPIO.output(TL1GREEN, GPIO.LOW)
+    elif id == 1:
+        GPIO.output(TL2RED, GPIO.LOW)
+        GPIO.output(TL2YELLOW, GPIO.HIGH)
+        GPIO.output(TL2GREEN, GPIO.LOW)
+
+
+async def animate(id, end_state):
+    global timestamp
+
+    semaphore_state = get_semaphore_state(id)
+    if semaphore_state == end_state:
+        return
+
+    await asyncio.sleep(3 if semaphore_state == "yellow" else 1)
+    if semaphore_state == "green":
+        turn_one_yellow(id)
+    elif semaphore_state == "yellow":
+        turn_one_red(id)
+    elif semaphore_state == "redyellow":
+        turn_one_green(id)
+    elif semaphore_state == "red":
+        turn_one_redyellow(id)
+    elif semaphore_state == "off":
+        turn_one_green(id)
+
+    timestamp = time.time()
+    await animate(id, end_state)
 
 
 async def set_semaphore(main_state):
     global timestamp
     if main_state == "off":
         turn_all_off()
-        timestamp = time.time()
     elif main_state == "red":
-        turn_all_off()
-        GPIO.output(TL1RED, GPIO.HIGH)
-        GPIO.output(TL2GREEN, GPIO.HIGH)
-        timestamp = time.time()
+        await animate(0, "red")
+        await animate(1, "green")
     elif main_state == "green":
-        turn_all_off()
-        GPIO.output(TL1GREEN, GPIO.HIGH)
-        GPIO.output(TL2RED, GPIO.HIGH)
-        timestamp = time.time()
+        await animate(1, "red")
+        await animate(0, "green")
+
+
+class BackgroundRunner:
+    async def run_main(self):
+        global timestamp
+        while True:
+            time_dif = time.time() - timestamp
+            if (
+                time_dif >= 10
+                and get_semaphore_state(0) == "red"
+                and get_semaphore_state(1) == "green"
+            ):
+                await set_semaphore("green")
+            await asyncio.sleep(1)
