@@ -31,11 +31,10 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            await websocket.send_json(semaphores.state)
-            oldTimeStamp = semaphores.state["timestamp"]
-            print("Send json")
-            while oldTimeStamp == semaphores.state["timestamp"]:
+            await websocket.send_json(semaphores.get_state())
+            await asyncio.sleep(1)
+            oldTimeStamp = semaphores.timestamp
+            while oldTimeStamp == semaphores.timestamp:
                 await asyncio.sleep(1)
-                print(f"{oldTimeStamp}, {semaphores.state['timestamp']}")
     except WebSocketDisconnect:
         print("Websocket terminated abruptly", flush=True)

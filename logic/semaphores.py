@@ -1,6 +1,8 @@
 import RPi.GPIO as GPIO
 import time
 
+timestamp = time.time()
+
 SEMAPHORE_PINS = [
     {
         "id": 0,
@@ -45,28 +47,29 @@ def get_semaphore_state(id):
         return "off"
 
 
-state = {
-    "timestamp": time.time(),
-    "zebra": False,
-    "lights": [
-        {
-            "id": 0,
-            "state": get_semaphore_state(0),
-        },
-        {
-            "id": 1,
-            "state": get_semaphore_state(1),
-            "hasCar": False,
-        },
-    ],
-}
+def get_state():
+    return {
+        "timestamp": timestamp,
+        "zebra": False,
+        "lights": [
+            {
+                "id": 0,
+                "state": get_semaphore_state(0),
+            },
+            {
+                "id": 1,
+                "state": get_semaphore_state(1),
+                "hasCar": False,
+            },
+        ],
+    }
 
 
-async def set_all_to_red(state):
+""" async def set_all_to_red(state):
     for light in state["lights"]:
         if light["state"] != "red":
             pass
-    # return {"msg": f"{id}, {state}"}
+    # return {"msg": f"{id}, {state}"} """
 
 
 # Turning both semaphores off
@@ -75,24 +78,20 @@ def turn_all_off():
         for color in ["red", "green", "yellow"]:
             pin = semaphore["pins"][color]
             GPIO.output(pin, GPIO.LOW)
-            state["lights"][semaphore["id"]]["state"] = "off"
 
 
 async def set_semaphore(main_state):
+    global timestamp
     if main_state == "off":
         turn_all_off()
-        state["timestamp"] = time.time()
+        timestamp = time.time()
     elif main_state == "red":
         turn_all_off()
         GPIO.output(TL1RED, GPIO.HIGH)
         GPIO.output(TL2GREEN, GPIO.HIGH)
-        state["timestamp"] = time.time()
-        state["lights"][0]["state"] = "red"
-        state["lights"][1]["state"] = "green"
+        timestamp = time.time()
     elif main_state == "green":
         turn_all_off()
         GPIO.output(TL1GREEN, GPIO.HIGH)
         GPIO.output(TL2RED, GPIO.HIGH)
-        state["timestamp"] = time.time()
-        state["lights"][0]["state"] = "green"
-        state["lights"][1]["state"] = "red"
+        timestamp = time.time()
