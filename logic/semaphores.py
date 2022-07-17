@@ -4,6 +4,9 @@ import asyncio
 
 timestamp = time.time()
 zebra = False
+in_animation = False
+car = False
+car_counter = 0
 
 SEMAPHORE_PINS = [
     {
@@ -26,6 +29,8 @@ TL2GREEN = 5
 
 BUTTON = 10
 
+PHOTORESISTOR = 7
+
 # Initial setup
 GPIO.setmode(GPIO.BOARD)
 GPIO.setwarnings(False)
@@ -36,13 +41,13 @@ for semaphore in SEMAPHORE_PINS:
         GPIO.output(pin, GPIO.LOW)
 GPIO.output(SEMAPHORE_PINS[0]["pins"]["green"], GPIO.HIGH)
 GPIO.output(SEMAPHORE_PINS[1]["pins"]["red"], GPIO.HIGH)
+GPIO.setup(PHOTORESISTOR, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 
 def button_callback(channel):
     global timestamp, zebra
     timestamp = time.time()
     zebra = True
-    print("...")
 
 
 GPIO.setup(BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
@@ -63,11 +68,13 @@ def get_semaphore_state(id):
 
 
 def get_state():
-    global timestamp, zebra
+    global timestamp, zebra, in_animation, car
 
     return {
         "timestamp": timestamp,
         "zebra": zebra,
+        "ready": not in_animation,
+        "car": car,
         "lights": [
             {
                 "id": 0,
@@ -76,7 +83,6 @@ def get_state():
             {
                 "id": 1,
                 "state": get_semaphore_state(1),
-                "hasCar": False,
             },
         ],
     }
@@ -149,10 +155,12 @@ def turn_one_yellow(id):
 
 
 async def animate(id, end_state):
-    global timestamp
+    global timestamp, in_animation
+    in_animation = True
 
     semaphore_state = get_semaphore_state(id)
     if semaphore_state == end_state:
+        in_animation = False
         return
 
     await asyncio.sleep(3 if semaphore_state == "yellow" else 1)
@@ -172,7 +180,10 @@ async def animate(id, end_state):
 
 
 async def set_semaphore(main_state):
-    global timestamp
+    global timestamp, in_animation
+    while in_animation:
+        await asyncio.sleep(0.5)
+
     if main_state == "off":
         turn_all_off()
     elif main_state == "red":
@@ -185,16 +196,25 @@ async def set_semaphore(main_state):
 
 class BackgroundRunner:
     async def run_main(self):
-        global timestamp, zebra
+        global timestamp, zebra, car, car_counter
         while True:
             time_dif = time.time() - timestamp
             if (
                 time_dif >= 10
                 and get_semaphore_state(0) == "red"
                 and get_semaphore_state(1) == "green"
+                and not in_animation
             ):
                 await set_semaphore("green")
-            elif time_dif >= 2 and zebra == True:
+            elif time_dif >= 2 and zebra == True and not in_animation:
                 zebra = False
                 await set_semaphore("red")
+            if get_semaphore_state(1) == "red" and get_semaphore_state(0) == "green":
+                car_counter += GPIO.input(PHOTORESISTOR)
+                if car_counter >= 5:
+                    timestamp = time.time()
+                    car = True
+                    car_counter = 0
+                    await set_semaphore("red")
+                    car = False
             await asyncio.sleep(1)

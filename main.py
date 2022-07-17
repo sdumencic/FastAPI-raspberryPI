@@ -1,11 +1,10 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import HTTPException
 import asyncio
 
 from models.SetSemaphoreSchema import SetSemaphoreSchema
 import logic.semaphores as semaphores
-
-print(semaphores.SEMAPHORE_PINS)
 
 app = FastAPI()
 
@@ -29,6 +28,12 @@ async def app_startup():
 
 @app.post("/set")
 async def set_main_light(bg: BackgroundTasks, value: SetSemaphoreSchema):
+    if semaphores.in_animation:
+        raise HTTPException(
+            status_code=status.HTTP_425_TOO_EARLY,
+            detail="The backend server is not ready.",
+        )
+
     bg.add_task(semaphores.set_semaphore, value.state)
     return {"msg": "Light changes will be applied"}
 
@@ -45,4 +50,3 @@ async def websocket_endpoint(websocket: WebSocket):
                 await asyncio.sleep(0.5)
     except WebSocketDisconnect:
         print("Websocket terminated abruptly", flush=True)
-        
